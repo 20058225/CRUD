@@ -1,0 +1,13 @@
+node_modules
+eslint.config.js
+package.json
+package-lock.json
+public/scripts/delete.js
+public/scripts/search.js
+public/scripts/update.js
+public/index.html
+public/index copy.html
+public/assets/logo.png
+public/assets/drink_13374223.mp4
+public/assets/drink_13374223.gif
+.env
