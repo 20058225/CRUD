@@ -27,20 +27,19 @@ const promisePool = pool.promise(); // Use promise-based queries
 
 // Endpoint to Add a User
 app.post('/addUser', async (req, res) => {
+    console.log("Request Body:", req.body);
     const { username, email, password } = req.body;
     if (!username || !email || !password) {
         return res.status(400).send('Username, email, and password are required.');
     }
     try {
-        const connection = await mysql.createConnection(dbConfig);
-        const [result] = await connection.execute(
+        const [result] = await promisePool.execute(
             'INSERT INTO users (userFullName, userEmail, userPassword) VALUES (?, ?, ?)',
             [username, email, password]
         );
-        await connection.end();
-        res.send('User added successfully.');
+        res.status(200).send('User added successfully.');
     } catch (err) {
-        console.error(err.message);
+        console.error("Database Error:", err);
         res.status(500).send('Error saving user to the database.');
     }
 });
