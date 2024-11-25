@@ -51,12 +51,10 @@ app.post('/getUser', async (req, res) => {
         return res.status(400).send('Username and password are required.');
     }
     try {
-        const connection = await mysql.createConnection(dbConfig);
-        const [rows] = await connection.execute(
+        const [rows] = await promisePool.execute(
             'SELECT * FROM users WHERE userFullName = ? AND userPassword = ?',
             [username, password]
         );
-        await connection.end();
 
         if (rows.length > 0) {
             res.status(200).send('Login successful.');
