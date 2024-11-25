@@ -1,85 +1,76 @@
-import express from 'express';
-import bodyParser from 'body-parser';
-import cors from 'cors';
-import sql from 'mssql';
-import path from 'path'; // Import the path module
-import dotenv from 'dotenv'; // Import dotenv
-import { fileURLToPath } from 'url'; // Import the fileURLToPath function
+const express = require('express');
+const mysql = require('mysql2');
+const path = require('path');
+const dotenv = require('dotenv');
 
-dotenv.config(); // Load .env variables
+dotenv.config(); // Load environment variables
 
 const app = express();
 
-// Get the current directory of the module
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename); // Extract __dirname from the module URL
-
-// Serve static files from the "public" directory
+// Middleware to serve static files
 app.use(express.static(path.join(__dirname, 'public')));
 
-app.use(bodyParser.json());
-app.use(cors());
+// Middleware to parse JSON and URL-encoded payloads
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// SQL Server Configuration
-const dbConfig = {
+// Create MySQL connection pool
+const pool = mysql.createPool({
+    host: process.env.DB_HOST,
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
-    server: process.env.DB_SERVER,
     database: process.env.DB_NAME,
-    options: {
-        encrypt: false,
-        enableArithAbort: true,
-    },
-};
+    waitForConnections: true,
+    connectionLimit: 10,
+    queueLimit: 0
+});
 
-// Endpoint to Add an User
+const promisePool = pool.promise(); // Use promise-based queries
+
+// Endpoint to add a user
 app.post('/addUser', async (req, res) => {
-    const { username, email, password  } = req.body;
-    if (!username || !email || !password ) {
-        return res.status(400).send('Username, email, and password are required.');
-    }
-    try {
-        const pool = await sql.connect(dbConfig);
-        const result = await pool
-            .request()
-            .input('userFullName', sql.VarChar, username)
-            .input('userEmail', sql.VarChar, email)
-            .input('userPassword', sql.VarChar, password)
-            .query('INSERT users VALUES (@userFullName, @userEmail, @userPassword)');
+    const { username, email, password } = req.body;
 
-        res.send('User added successfully.');
-    } catch (err) {
-        console.error(err.message);
-        res.status(500).send('Error saving user to the database.');
+    if (!username || !email || !password) {
+        return res.status(400).json({ message: 'Username, email, and password are required.' });
+    }
+
+    try {
+        const query = 'INSERT INTO users (userFullName, userEmail, userPassword) VALUES (?, ?, ?)';
+        const [result] = await promisePool.execute(query, [username, email, password]);
+
+        res.status(201).json({ message: 'User added successfully', userId: result.insertId });
+    } catch (error) {
+        console.error('Error adding user:', error.message);
+        res.status(500).json({ message: 'Internal Server Error' });
     }
 });
-// Endpoint to Login with a User
+
+// Endpoint to authenticate a user
 app.post('/getUser', async (req, res) => {
     const { username, password } = req.body;
-    if (!username || !password) {
-        return res.status(400).send('Username and password are required.');
-    }
-    try {
-        const pool = await sql.connect(dbConfig);
-        const result = await pool
-            .request()
-            .input('userFullName', sql.VarChar, username)
-            .input('userPassword', sql.VarChar, password)
-            .query('SELECT * FROM users WHERE userFullName = @userFullName AND userPassword = @userPassword');
 
-        if (result.recordset.length > 0) {
-            res.status(200).send('Login successful.');
+    if (!username || !password) {
+        return res.status(400).json({ message: 'Username and password are required.' });
+    }
+
+    try {
+        const query = 'SELECT * FROM users WHERE userFullName = ? AND userPassword = ?';
+        const [rows] = await promisePool.execute(query, [username, password]);
+
+        if (rows.length > 0) {
+            res.status(200).json({ message: 'Login successful', user: rows[0] });
         } else {
-            res.status(401).send('Invalid username or password.');
+            res.status(401).json({ message: 'Invalid username or password.' });
         }
-    } catch (err) {
-        console.error(err.message);
-        res.status(500).send('Error checking the user in the database.');
+    } catch (error) {
+        console.error('Error authenticating user:', error.message);
+        res.status(500).json({ message: 'Internal Server Error' });
     }
 });
 
-// Start Server
-const PORT = 3005;
+// Start the server
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
 });
