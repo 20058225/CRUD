@@ -57,12 +57,12 @@ app.post('/getUser', async (req, res) => {
         );
 
         if (rows.length > 0) {
-            res.status(200).send('Login successful.');
+            res.status(200).json({ message: 'Login successful', user: rows[0] });
         } else {
             res.status(401).send('Invalid username or password.');
         }
     } catch (err) {
-        console.error(err.message);
+        console.error('Error querying the database:', err);
         res.status(500).send('Error checking the user in the database.');
     }
 });
